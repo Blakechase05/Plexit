@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# plexit_insert_images.py – No inputs, set vars at top
+# plexit_insert_images.py – Fixed image size in mm
 
 import os
 import re
@@ -7,18 +7,17 @@ import sys
 import textwrap
 from pathlib import Path
 from typing import List, Tuple
+from PIL import Image
 
 # -------------------------------
 # 🔧 Configurable Inputs
 # -------------------------------
 POLY_FDF = "test.fdf"
 PDF_NAME = "Document1.pdf"
-IMAGE    = "images.jpg"
-PAGE     = 1                     # 1-based page number
-IMG_W    = 194                   # Width in points
-IMG_H    = 259                   # Height in points
+IMAGE    = "image.jpg"
+PAGE     = 1                         # 1-based page number
+# FORCE_SIZE_MM = (25, 25)             # Desired image size (W, H) in mm
 # -------------------------------
-
 
 def extract_poly_points(poly_fdf_path: str) -> List[List[Tuple[float, float]]]:
     """Return a list of lists of (x, y) tuples for every polygon."""
@@ -60,6 +59,21 @@ def centroid(vertices: List[Tuple[float, float]]) -> Tuple[float, float]:
     cx /= 6 * a
     cy /= 6 * a
     return (cx, cy)
+
+
+def get_image_dimensions_and_bytes(image_path: str) -> Tuple[float, float, bytes]:
+    """Return (width, height) in points and raw image bytes."""
+    with Image.open(image_path) as img:
+        dpi = img.info.get("dpi", (72, 72))  # Default to 72 DPI if missing
+        width_pt = img.width
+        height_pt = img.height
+    img_bytes = Path(image_path).read_bytes()
+    return width_pt, height_pt, img_bytes
+
+
+# def mm_to_pt(mm: float) -> float:
+#     """Convert millimetres to PDF points (1 inch = 72 pt, 1 inch = 25.4 mm)."""
+#     return mm * 72 / 25.4
 
 
 def build_image_fdf(pdf_name: str, img_bytes: bytes, centres: List[Tuple[float, float]],
@@ -154,15 +168,20 @@ def get_next_output_filename(base="output", ext="fdf") -> str:
 def main() -> None:
     polys = extract_poly_points(POLY_FDF)
     centres = [centroid(p) for p in polys]
-    img_bytes = Path(IMAGE).read_bytes()
+    width_pt, height_pt, img_bytes = get_image_dimensions_and_bytes(IMAGE)
     out_fdf = get_next_output_filename()
+
+    # 📏 Override image size using FORCE_SIZE_MM
+    # if FORCE_SIZE_MM:
+    #     width_pt = mm_to_pt(FORCE_SIZE_MM[0])
+    #     height_pt = mm_to_pt(FORCE_SIZE_MM[1])
 
     fdf_bytes = build_image_fdf(
         pdf_name=PDF_NAME,
         img_bytes=img_bytes,
         centres=centres,
-        width=IMG_W,
-        height=IMG_H,
+        width=width_pt,
+        height=height_pt,
         page=PAGE - 1,
     )
 
