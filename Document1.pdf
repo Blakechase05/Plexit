@@ -1,6 +1,6 @@
 %PDF-1.4
 %«Ïè¢
-1 0 obj<</CreationDate(D:20250721215359+08'00')/ModDate(D:20250721222933+08'00')/Author(plexu)/Creator(Bluebeam Revu x64)/Producer(Bluebeam PDF Library 21)>>
+1 0 obj<</CreationDate(D:20250721215359+08'00')/ModDate(D:20250721231605+08'00')/Author(plexu)/Creator(Bluebeam Revu x64)/Producer(Bluebeam PDF Library 21)>>
 endobj
 2 0 obj<</Type/Catalog/Pages 3 0 R>>
 endobj
@@ -8,17 +8,39 @@ endobj
 endobj
 4 0 obj<</Type/Pages/Kids[5 0 R]/Count 1/Parent 3 0 R>>
 endobj
-5 0 obj<</Type/Page/Parent 4 0 R/MediaBox[0 0 595.2756 841.8895]>>
+5 0 obj<</Type/Page/Parent 4 0 R/MediaBox[0 0 595.2756 841.8895]/Annots 15 0 R>>
+endobj
+15 0 obj[17 0 R]
+endobj
+17 0 obj<</Subj(Polygon)/Type/Annot/F 4/C[1 0 0]/CreationDate(D:20250721165811+08'00')/T(plexu)/Subtype/Polygon/M(D:20250721231602+08'00')/Vertices[121.2101 719.8491 121.2101 585.4581 281.5757 585.4581 281.5757 719.8491]/Rect[115.7101 579.9581 287.0757 725.3491]/NM(DESZRNVQCEGATRRZ)/P 5 0 R/AP<</N 18 0 R>>>>
+endobj
+18 0 obj<</Type/XObject/Subtype/Form/FormType 1/BBox[115.7101 579.9581 287.0757 725.3491]/Resources<</ProcSet[/PDF]>>/Matrix[1 0 0 1 -115.7101 -579.9581]/Length 95>>
+stream
+1 0 0 RG 1 w 121.2101 719.8491 m 121.2101 585.4581 l 281.5757 585.4581 l 281.5757 719.8491 l s 
+endstream
 endobj
 xref
-0 6
+0 19
 0000000000 65535 f 
 0000000015 00000 n 
 0000000180 00000 n 
 0000000224 00000 n 
 0000000274 00000 n 
 0000000337 00000 n 
-trailer<</Size 6/Info 1 0 R/ID[<3417b311d000d4d87f80da502540ff1f><3417b311d000d4d87f80da502540ff1f>]/Root 2 0 R>>
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000425 00000 n 
+0000000000 65535 f 
+0000000449 00000 n 
+0000000766 00000 n 
+trailer<</Size 19/Info 1 0 R/ID[<3417b311d000d4d87f80da502540ff1f><1c82ace9ea834b6062bbd1c8b23d06e8>]/Root 2 0 R>>
 startxref
-411
+1052
 %%EOF
