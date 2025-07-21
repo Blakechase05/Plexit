@@ -14,9 +14,13 @@ from io import BytesIO
 # -------------------------------
 POLY_FDF = "test.fdf"
 PDF_NAME = "Document1.pdf"
-IMAGE    = "images.jpg"
-PAGE     = 1                         # 1-based page number
-FORCE_SIZE_MM = (50, 50)             # Desired image size (W, H) in mm
+IMAGE = "images.jpg"
+PAGE = 1  # 1-based
+
+# Page setup
+PAGE_SIZE_MM = (210, 297)              # A4 Portrait
+SCALE = 11                             # 1:50 real-world to paper
+REAL_OBJECT_SIZE_MM = (250, 250)       # Real size of object (e.g. 250mm x 250mm)
 # -------------------------------
 
 def mm_to_pt(mm: float) -> float:
@@ -60,20 +64,24 @@ def centroid(vertices: List[Tuple[float, float]]) -> Tuple[float, float]:
     cy /= 6 * a
     return (cx, cy)
 
-def get_resized_image(image_path: str, target_size_mm: Tuple[float, float]) -> Tuple[float, float, int, int, bytes]:
-    """Resize image to target size in mm, return pt size, pixel size, and byte data"""
-    width_pt = mm_to_pt(target_size_mm[0])
-    height_pt = mm_to_pt(target_size_mm[1])
-    width_px = round(width_pt)
-    height_px = round(height_pt)
+def scale_real_object_to_pdf(real_mm: Tuple[float, float], scale: float) -> Tuple[float, float]:
+    """Convert real-world size in mm → scaled pt on PDF"""
+    printed_w_mm = real_mm[0] / scale
+    printed_h_mm = real_mm[1] / scale
+    return mm_to_pt(printed_w_mm), mm_to_pt(printed_h_mm)
+
+def get_resized_image(image_path: str, target_size_pt: Tuple[float, float]) -> Tuple[int, int, bytes]:
+    """Resize image to match target pt size (1 pt = 1 px at 72 DPI)"""
+    width_px = round(target_size_pt[0])
+    height_px = round(target_size_pt[1])
 
     with Image.open(image_path) as img:
-        img_resized = img.resize((width_px, height_px), resample=Image.LANCZOS)
+        resized = img.resize((width_px, height_px), resample=Image.LANCZOS)
         buffer = BytesIO()
-        img_resized.save(buffer, format="JPEG")
+        resized.save(buffer, format="JPEG")
         img_bytes = buffer.getvalue()
 
-    return width_pt, height_pt, width_px, height_px, img_bytes
+    return width_px, height_px, img_bytes
 
 def build_image_fdf(pdf_name: str, img_bytes: bytes, centres: List[Tuple[float, float]],
                     width_pt: float, height_pt: float, width_px: int, height_px: int, page: int) -> bytes:
@@ -165,9 +173,15 @@ def get_next_output_filename(base="output", ext="fdf") -> str:
 def main() -> None:
     polys = extract_poly_points(POLY_FDF)
     centres = [centroid(p) for p in polys]
-    width_pt, height_pt, width_px, height_px, img_bytes = get_resized_image(IMAGE, FORCE_SIZE_MM)
-    out_fdf = get_next_output_filename()
 
+    # Convert real-world object size → scaled pt size
+    width_pt, height_pt = scale_real_object_to_pdf(REAL_OBJECT_SIZE_MM, SCALE)
+
+    # Resize image to match that point size (1 pt = 1 px)
+    width_px, height_px, img_bytes = get_resized_image(IMAGE, (width_pt, height_pt))
+
+    # Build FDF
+    out_fdf = get_next_output_filename()
     fdf_bytes = build_image_fdf(
         pdf_name=PDF_NAME,
         img_bytes=img_bytes,
@@ -180,7 +194,7 @@ def main() -> None:
     )
 
     Path(out_fdf).write_bytes(fdf_bytes)
-    print(f"✅ Wrote {out_fdf} with {len(centres)} image(s). Size: {FORCE_SIZE_MM[0]} × {FORCE_SIZE_MM[1]} mm")
+    print(f"✅ Wrote {out_fdf} with {len(centres)} image(s) at 1:{SCALE} scale — {REAL_OBJECT_SIZE_MM[0]}×{REAL_OBJECT_SIZE_MM[1]} mm real-world size")
 
 if __name__ == "__main__":
     main()
