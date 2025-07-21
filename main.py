@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# plexit_insert_images.py – Fixed image size in mm
 
 import os
 import re
@@ -8,19 +7,22 @@ import textwrap
 from pathlib import Path
 from typing import List, Tuple
 from PIL import Image
+from io import BytesIO
 
 # -------------------------------
 # 🔧 Configurable Inputs
 # -------------------------------
 POLY_FDF = "test.fdf"
 PDF_NAME = "Document1.pdf"
-IMAGE    = "image.jpg"
+IMAGE    = "images.jpg"
 PAGE     = 1                         # 1-based page number
-# FORCE_SIZE_MM = (25, 25)             # Desired image size (W, H) in mm
+FORCE_SIZE_MM = (50, 50)             # Desired image size (W, H) in mm
 # -------------------------------
 
+def mm_to_pt(mm: float) -> float:
+    return mm * 72 / 25.4  # 1 inch = 72 pt, 1 inch = 25.4 mm
+
 def extract_poly_points(poly_fdf_path: str) -> List[List[Tuple[float, float]]]:
-    """Return a list of lists of (x, y) tuples for every polygon."""
     if not os.path.isfile(poly_fdf_path):
         sys.exit("❌  Cannot find file “%s”" % poly_fdf_path)
 
@@ -36,9 +38,7 @@ def extract_poly_points(poly_fdf_path: str) -> List[List[Tuple[float, float]]]:
             print(f"⚠️  skipped malformed /Vertices block: {block[:40]}…")
     return polys
 
-
 def centroid(vertices: List[Tuple[float, float]]) -> Tuple[float, float]:
-    """Return centroid of a polygon."""
     if len(vertices) < 3:
         xs, ys = zip(*vertices)
         return (sum(xs) / len(xs), sum(ys) / len(ys))
@@ -60,34 +60,32 @@ def centroid(vertices: List[Tuple[float, float]]) -> Tuple[float, float]:
     cy /= 6 * a
     return (cx, cy)
 
+def get_resized_image(image_path: str, target_size_mm: Tuple[float, float]) -> Tuple[float, float, int, int, bytes]:
+    """Resize image to target size in mm, return pt size, pixel size, and byte data"""
+    width_pt = mm_to_pt(target_size_mm[0])
+    height_pt = mm_to_pt(target_size_mm[1])
+    width_px = round(width_pt)
+    height_px = round(height_pt)
 
-def get_image_dimensions_and_bytes(image_path: str) -> Tuple[float, float, bytes]:
-    """Return (width, height) in points and raw image bytes."""
     with Image.open(image_path) as img:
-        dpi = img.info.get("dpi", (72, 72))  # Default to 72 DPI if missing
-        width_pt = img.width
-        height_pt = img.height
-    img_bytes = Path(image_path).read_bytes()
-    return width_pt, height_pt, img_bytes
+        img_resized = img.resize((width_px, height_px), resample=Image.LANCZOS)
+        buffer = BytesIO()
+        img_resized.save(buffer, format="JPEG")
+        img_bytes = buffer.getvalue()
 
-
-# def mm_to_pt(mm: float) -> float:
-#     """Convert millimetres to PDF points (1 inch = 72 pt, 1 inch = 25.4 mm)."""
-#     return mm * 72 / 25.4
-
+    return width_pt, height_pt, width_px, height_px, img_bytes
 
 def build_image_fdf(pdf_name: str, img_bytes: bytes, centres: List[Tuple[float, float]],
-                    width: float, height: float, page: int) -> bytes:
-    """Return full FDF as bytes with one SquareImage annotation per centre."""
+                    width_pt: float, height_pt: float, width_px: int, height_px: int, page: int) -> bytes:
     objects = []
     annot_refs = []
     obj_num = 2
 
     for idx, (cx, cy) in enumerate(centres, start=1):
-        x0 = cx - width / 2
-        y0 = cy - height / 2
-        x1 = x0 + width
-        y1 = y0 + height
+        x0 = cx - width_pt / 2
+        y0 = cy - height_pt / 2
+        x1 = x0 + width_pt
+        y1 = y0 + height_pt
 
         annot_id = obj_num
         stream_id = obj_num + 1
@@ -110,7 +108,7 @@ def build_image_fdf(pdf_name: str, img_bytes: bytes, centres: List[Tuple[float, 
             endobj
         """))
 
-        stream = f"{x0} {y0} {width} {height} re q {width} 0 0 {height} {x0} {y0} cm /Image Do Q"
+        stream = f"q {width_pt} 0 0 {height_pt} {x0} {y0} cm /Image Do Q"
         objects.append(textwrap.dedent(f"""\
             {stream_id} 0 obj
             <<
@@ -126,6 +124,7 @@ def build_image_fdf(pdf_name: str, img_bytes: bytes, centres: List[Tuple[float, 
             endstream
             endobj
         """))
+
         annot_refs.append(f"{annot_id} 0 R")
 
     img_obj = textwrap.dedent(f"""\
@@ -133,8 +132,8 @@ def build_image_fdf(pdf_name: str, img_bytes: bytes, centres: List[Tuple[float, 
         <<
           /Type /XObject
           /Subtype /Image
-          /Width {width}
-          /Height {height}
+          /Width {width_px}
+          /Height {height_px}
           /ColorSpace /DeviceRGB
           /BitsPerComponent 8
           /Filter /DCTDecode
@@ -156,7 +155,6 @@ def build_image_fdf(pdf_name: str, img_bytes: bytes, centres: List[Tuple[float, 
 
     return root.encode("latin-1") + b"".join(obj.encode("latin-1") for obj in objects) + img_obj + b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
 
-
 def get_next_output_filename(base="output", ext="fdf") -> str:
     for i in range(1, 100):
         filename = f"{base}-{i:02d}.{ext}"
@@ -164,30 +162,25 @@ def get_next_output_filename(base="output", ext="fdf") -> str:
             return filename
     sys.exit("❌ Could not find free output file name slot (output-01 to output-99).")
 
-
 def main() -> None:
     polys = extract_poly_points(POLY_FDF)
     centres = [centroid(p) for p in polys]
-    width_pt, height_pt, img_bytes = get_image_dimensions_and_bytes(IMAGE)
+    width_pt, height_pt, width_px, height_px, img_bytes = get_resized_image(IMAGE, FORCE_SIZE_MM)
     out_fdf = get_next_output_filename()
-
-    # 📏 Override image size using FORCE_SIZE_MM
-    # if FORCE_SIZE_MM:
-    #     width_pt = mm_to_pt(FORCE_SIZE_MM[0])
-    #     height_pt = mm_to_pt(FORCE_SIZE_MM[1])
 
     fdf_bytes = build_image_fdf(
         pdf_name=PDF_NAME,
         img_bytes=img_bytes,
         centres=centres,
-        width=width_pt,
-        height=height_pt,
+        width_pt=width_pt,
+        height_pt=height_pt,
+        width_px=width_px,
+        height_px=height_px,
         page=PAGE - 1,
     )
 
     Path(out_fdf).write_bytes(fdf_bytes)
-    print(f"✅ Wrote {out_fdf} with {len(centres)} image(s).")
-
+    print(f"✅ Wrote {out_fdf} with {len(centres)} image(s). Size: {FORCE_SIZE_MM[0]} × {FORCE_SIZE_MM[1]} mm")
 
 if __name__ == "__main__":
     main()
