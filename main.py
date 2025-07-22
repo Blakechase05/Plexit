@@ -34,9 +34,8 @@ def resizeImageToRawStreams(path: str, sizePt: Tuple[float, float], dpi: float) 
         r, g, b, a = img.split()
         rgb = Image.merge("RGB", (r, g, b))
 
-        rgbBytes = rgb.tobytes()
+        rgbBytes   = rgb.tobytes()
         alphaBytes = a.tobytes()
-
         return widthPx, heightPx, zlib.compress(rgbBytes), zlib.compress(alphaBytes)
 
 def extractPolyPoints(fdfPath: str) -> List[List[Tuple[float, float]]]:
@@ -63,8 +62,8 @@ def getCentroid(verts: List[Tuple[float, float]]) -> Tuple[float, float]:
     for i in range(len(verts)):
         x0, y0 = verts[i]
         x1, y1 = verts[(i + 1) % len(verts)]
-        cross = x0 * y1 - x1 * y0
-        a += cross
+        cross  = x0 * y1 - x1 * y0
+        a  += cross
         cx += (x0 + x1) * cross
         cy += (y0 + y1) * cross
     if a == 0:
@@ -88,12 +87,15 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
     objNum = 2
 
     for idx, (cx, cy) in enumerate(centres, start=1):
-        x0, y0 = cx - wPt / 2, cy - hPt / 2
+        x0, y0 = cx - wPt/2, cy - hPt/2
         x1, y1 = x0 + wPt, y0 + hPt
         annotId, streamId = objNum, objNum + 1
         objNum += 2
 
+        # appearance stream (draw the image)
         stream = f"q {wPt} 0 0 {hPt} {x0} {y0} cm /Image Do Q"
+
+        # annotation object – note /Border [0 0 0] to force zero‑thickness outline
         objects.append(textwrap.dedent(f"""
             {annotId} 0 obj
             <<
@@ -104,12 +106,15 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
               /NM (Img{idx})
               /T  (Img{idx})
               /F  4
+              /Border [0 0 0]
               /Image 999 0 R
               /AP << /N {streamId} 0 R >>
               /Page {pageNum0}
             >>
             endobj
         """))
+
+        # appearance XObject
         objects.append(textwrap.dedent(f"""
             {streamId} 0 obj
             <<
@@ -125,9 +130,10 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
             endstream\r
             endobj
         """))
+
         annotRefs.append(f"{annotId} 0 R")
 
-    # RGB image stream (compressed raw RGB)
+    # embedded RGB image stream
     imgObj = textwrap.dedent(f"""
         999 0 obj
         <<
@@ -144,7 +150,7 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
         stream\r
     """).encode("latin-1") + rgbData + b"\r\nendstream\r\nendobj\r\n"
 
-    # Alpha channel as soft mask
+    # alpha mask stream
     smaskObj = textwrap.dedent(f"""
         998 0 obj
         <<
@@ -160,6 +166,7 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
         stream\r
     """).encode("latin-1") + alphaData + b"\r\nendstream\r\nendobj\r\n"
 
+    # FDF root object
     root = textwrap.dedent(f"""
         %FDF-1.2
         %âãÏÓ
@@ -173,19 +180,21 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
         endobj
     """)
 
-    return root.encode("latin-1") + b"".join(o.encode("latin-1") for o in objects) + imgObj + smaskObj + \
-           b"trailer\r\n<< /Root 1 0 R >>\r\n%%EOF\r\n"
+    return (root.encode("latin-1")
+            + b"".join(o.encode("latin-1") for o in objects)
+            + imgObj + smaskObj
+            + b"trailer\r\n<< /Root 1 0 R >>\r\n%%EOF\r\n")
 
 def main() -> None:
-    polys = extractPolyPoints(polyFdf)
-    centres = [getCentroid(p) for p in polys]
+    polys    = extractPolyPoints(polyFdf)
+    centres  = [getCentroid(p) for p in polys]
     wPt, hPt = calculateScaledSizePt(realObjectSizeMm, scale)
     wPx, hPx, rgbData, alphaData = resizeImageToRawStreams(imagePath, (wPt, hPt), dpi)
-    outFdf = nextOutputName()
+    outFdf   = nextOutputName()
 
-    fdfBytes = buildFdf(pdfName, rgbData, alphaData, centres, wPt, hPt, wPx, hPx, page - 1)
+    fdfBytes = buildFdf(pdfName, rgbData, alphaData, centres, wPt, hPt, wPx, hPx, page-1)
     Path(outFdf).write_bytes(fdfBytes)
-    print(f"✅ Wrote {outFdf} with {len(centres)} image(s) using PNG transparency")
+    print(f"✅  Wrote {outFdf} with {len(centres)} image(s) — outline set to 0 pt")
 
 if __name__ == "__main__":
     main()
