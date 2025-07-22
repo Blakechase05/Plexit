@@ -1,59 +1,43 @@
 #!/usr/bin/env python3
-"""
-insert_image_fdf.py
--------------------
-Read an FDF containing polygon annotations, find each polygon’s centroid,
-and output a new FDF that embeds an image (SquareImage annotation) at every
-centroid.  Image size is based on a real‑world dimension and drawing scale.
-
-Tested with Bluebeam Revu 21.
-"""
-
 import os
 import re
 import sys
+import zlib
 import textwrap
+from io import BytesIO
 from pathlib import Path
 from typing import List, Tuple
-from io import BytesIO
-from PIL import Image   # pip install pillow
+from PIL import Image
 
-# ────────────────────────────── user inputs ────────────────────────────── #
+# ─── USER INPUT ──────────────────────────────────────────────
 polyFdf          = "25111-PLX-SKT-MD-Schematic Design_03.fdf"
 pdfName          = "25111-PLX-SKT-MD-Schematic Design_03.pdf"
-imagePath        = "Light.png"
-page             = 1                     # 1‑based page number in the PDF
-pageSizeMm       = (210, 297)            # A4 portrait (unused for now)
-scale            = 50                   # 1 : 50 drawing scale
-realObjectSizeMm = (250, 250)            # real object = 250 mm × 250 mm
-DPI = 1000.0  # Higher DPI = better image clarity
-# ───────────────────────────────────────────────────────────────────────── #
+imagePath        = "b.png"
+page             = 1
+scale            = 50
+realObjectSizeMm = (250, 250)
+dpi              = 1000.0
+# ─────────────────────────────────────────────────────────────
 
-# ── helpers ──────────────────────────────────────────────────────────────
 def mmToPt(mm: float) -> float:
-    return mm * 72 / 25.4                # 1 inch = 72 pt = 25.4 mm
+    return mm * 72 / 25.4
 
-def calculateScaledSizePt(realMm: Tuple[float, float],
-                           scale: float) -> Tuple[float, float]:
-    """Convert real‑world mm to drawing‑size points given a scale (1:scale)."""
-    widthMm  = realMm[0] / scale
-    heightMm = realMm[1] / scale
-    return mmToPt(widthMm), mmToPt(heightMm)
+def calculateScaledSizePt(realMm: Tuple[float, float], scale: float) -> Tuple[float, float]:
+    return mmToPt(realMm[0] / scale), mmToPt(realMm[1] / scale)
 
-def resizeImageToPt(path: str,
-                    targetSizePt: Tuple[float, float]) -> Tuple[int, int, bytes]:
-    """
-    Resize *path* to *targetSizePt* (points) assuming 72 dpi,
-    return widthPx, heightPx, and the JPEG‑encoded bytes.
-    """
+def resizeImageToRawStreams(path: str, sizePt: Tuple[float, float], dpi: float) -> Tuple[int, int, bytes, bytes]:
+    widthPx = round(sizePt[0] * dpi / 72)
+    heightPx = round(sizePt[1] * dpi / 72)
 
-    widthPx   = round(targetSizePt[0] * DPI / 72)
-    heightPx  = round(targetSizePt[1] * DPI / 72)
-    with Image.open(path) as img:
-        resized = img.resize((widthPx, heightPx), Image.LANCZOS).convert("RGB")
-        buf = BytesIO()
-        resized.save(buf, format="JPEG", quality=85)
-        return widthPx, heightPx, buf.getvalue()
+    with Image.open(path).convert("RGBA") as img:
+        img = img.resize((widthPx, heightPx), Image.LANCZOS)
+        r, g, b, a = img.split()
+        rgb = Image.merge("RGB", (r, g, b))
+
+        rgbBytes = rgb.tobytes()
+        alphaBytes = a.tobytes()
+
+        return widthPx, heightPx, zlib.compress(rgbBytes), zlib.compress(alphaBytes)
 
 def extractPolyPoints(fdfPath: str) -> List[List[Tuple[float, float]]]:
     if not os.path.isfile(fdfPath):
@@ -70,22 +54,21 @@ def extractPolyPoints(fdfPath: str) -> List[List[Tuple[float, float]]]:
             print(f"⚠️  Skipped malformed /Vertices block: {block[:40]}…")
     return polys
 
-def getCentroid(vertices: List[Tuple[float, float]]) -> Tuple[float, float]:
-    """Polygon centroid (handles triangles‑n‑up plus 2‑point fallback)."""
-    if len(vertices) < 3:
-        xs, ys = zip(*vertices)
+def getCentroid(verts: List[Tuple[float, float]]) -> Tuple[float, float]:
+    if len(verts) < 3:
+        xs, ys = zip(*verts)
         return sum(xs)/len(xs), sum(ys)/len(ys)
 
     a = cx = cy = 0.0
-    for i in range(len(vertices)):
-        x0, y0 = vertices[i]
-        x1, y1 = vertices[(i + 1) % len(vertices)]
-        cross  = x0 * y1 - x1 * y0
-        a  += cross
+    for i in range(len(verts)):
+        x0, y0 = verts[i]
+        x1, y1 = verts[(i + 1) % len(verts)]
+        cross = x0 * y1 - x1 * y0
+        a += cross
         cx += (x0 + x1) * cross
         cy += (y0 + y1) * cross
-    if a == 0:                           # nearly colinear – use average
-        xs, ys = zip(*vertices)
+    if a == 0:
+        xs, ys = zip(*verts)
         return sum(xs)/len(xs), sum(ys)/len(ys)
     a *= 0.5
     return cx / (6*a), cy / (6*a)
@@ -97,22 +80,20 @@ def nextOutputName(base="output", ext="fdf") -> str:
             return name
     sys.exit("❌  No free output slot (output-01 … output-99).")
 
-def buildFdf(pdf: str, imgData: bytes, centres: List[Tuple[float, float]],
-             wPt: float, hPt: float, wPx: int, hPx: int, pageNum0: int) -> bytes:
-    """
-    Construct an FDF 1.2 with one SquareImage annotation per *centres* entry.
-    *pageNum0* is zero‑based for /Page.
-    """
+def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
+             centres: List[Tuple[float, float]], wPt: float, hPt: float,
+             wPx: int, hPx: int, pageNum0: int) -> bytes:
+
     objects, annotRefs = [], []
     objNum = 2
 
     for idx, (cx, cy) in enumerate(centres, start=1):
-        x0, y0 = cx - wPt/2, cy - hPt/2
+        x0, y0 = cx - wPt / 2, cy - hPt / 2
         x1, y1 = x0 + wPt, y0 + hPt
         annotId, streamId = objNum, objNum + 1
         objNum += 2
 
-        # Annotation object
+        stream = f"q {wPt} 0 0 {hPt} {x0} {y0} cm /Image Do Q"
         objects.append(textwrap.dedent(f"""
             {annotId} 0 obj
             <<
@@ -129,9 +110,6 @@ def buildFdf(pdf: str, imgData: bytes, centres: List[Tuple[float, float]],
             >>
             endobj
         """))
-
-        # Appearance stream
-        stream = f"q {wPt} 0 0 {hPt} {x0} {y0} cm /Image Do Q"
         objects.append(textwrap.dedent(f"""
             {streamId} 0 obj
             <<
@@ -149,8 +127,8 @@ def buildFdf(pdf: str, imgData: bytes, centres: List[Tuple[float, float]],
         """))
         annotRefs.append(f"{annotId} 0 R")
 
-    # JPEG image object (ID 999 0 R)
-    imgObj  = textwrap.dedent(f"""
+    # RGB image stream (compressed raw RGB)
+    imgObj = textwrap.dedent(f"""
         999 0 obj
         <<
           /Type /XObject
@@ -159,13 +137,29 @@ def buildFdf(pdf: str, imgData: bytes, centres: List[Tuple[float, float]],
           /Height {hPx}
           /ColorSpace /DeviceRGB
           /BitsPerComponent 8
-          /Filter /DCTDecode
-          /Length {len(imgData)}
+          /Filter /FlateDecode
+          /SMask 998 0 R
+          /Length {len(rgbData)}
         >>
         stream\r
-    """).encode("latin-1") + imgData + b"\r\nendstream\r\nendobj\r\n"
+    """).encode("latin-1") + rgbData + b"\r\nendstream\r\nendobj\r\n"
 
-    # Root
+    # Alpha channel as soft mask
+    smaskObj = textwrap.dedent(f"""
+        998 0 obj
+        <<
+          /Type /XObject
+          /Subtype /Image
+          /Width {wPx}
+          /Height {hPx}
+          /ColorSpace /DeviceGray
+          /BitsPerComponent 8
+          /Filter /FlateDecode
+          /Length {len(alphaData)}
+        >>
+        stream\r
+    """).encode("latin-1") + alphaData + b"\r\nendstream\r\nendobj\r\n"
+
     root = textwrap.dedent(f"""
         %FDF-1.2
         %âãÏÓ
@@ -179,27 +173,19 @@ def buildFdf(pdf: str, imgData: bytes, centres: List[Tuple[float, float]],
         endobj
     """)
 
-    return root.encode("latin-1") + b"".join(o.encode("latin-1") for o in objects) + imgObj + \
+    return root.encode("latin-1") + b"".join(o.encode("latin-1") for o in objects) + imgObj + smaskObj + \
            b"trailer\r\n<< /Root 1 0 R >>\r\n%%EOF\r\n"
 
-# ── main ─────────────────────────────────────────────────────────────────
 def main() -> None:
-    polys    = extractPolyPoints(polyFdf)
-    centres  = [getCentroid(p) for p in polys]
+    polys = extractPolyPoints(polyFdf)
+    centres = [getCentroid(p) for p in polys]
     wPt, hPt = calculateScaledSizePt(realObjectSizeMm, scale)
-    wPx, hPx, imgBytes = resizeImageToPt(imagePath, (wPt, hPt))
+    wPx, hPx, rgbData, alphaData = resizeImageToRawStreams(imagePath, (wPt, hPt), dpi)
+    outFdf = nextOutputName()
 
-    outFdf   = nextOutputName()
-    fdfBytes = buildFdf(pdf=pdfName,
-                        imgData=imgBytes,
-                        centres=centres,
-                        wPt=wPt, hPt=hPt,
-                        wPx=wPx, hPx=hPx,
-                        pageNum0=page-1)
-
+    fdfBytes = buildFdf(pdfName, rgbData, alphaData, centres, wPt, hPt, wPx, hPx, page - 1)
     Path(outFdf).write_bytes(fdfBytes)
-    print(f"✅  Wrote {outFdf} with {len(centres)} image(s) "
-          f"at 1:{scale} → {realObjectSizeMm[0]}×{realObjectSizeMm[1]} mm real size.")
+    print(f"✅ Wrote {outFdf} with {len(centres)} image(s) using PNG transparency")
 
 if __name__ == "__main__":
     main()
