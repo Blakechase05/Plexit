@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""
+insert_image_fdf.py
+-------------------
+Read an FDF containing polygon annotations, find each polygon’s centroid,
+and output a new FDF that embeds an image (SquareImage annotation) at every
+centroid.  Image size is based on a real‑world dimension and drawing scale.
+
+Tested with Bluebeam Revu 21.
+"""
 
 import os
 import re
@@ -6,119 +15,125 @@ import sys
 import textwrap
 from pathlib import Path
 from typing import List, Tuple
-from PIL import Image
 from io import BytesIO
+from PIL import Image   # pip install pillow
 
-# -------------------------------
-# 🔧 Configurable Inputs
-# -------------------------------
-POLY_FDF = "test.fdf"
-PDF_NAME = "Document1.pdf"
-IMAGE = "images.jpg"
-PAGE = 1  # 1-based
+# ────────────────────────────── user inputs ────────────────────────────── #
+polyFdf          = "25111-PLX-SKT-MD-Schematic Design_03.fdf"
+pdfName          = "25111-PLX-SKT-MD-Schematic Design_03.pdf"
+imagePath        = "Light.png"
+page             = 1                     # 1‑based page number in the PDF
+pageSizeMm       = (210, 297)            # A4 portrait (unused for now)
+scale            = 50                   # 1 : 50 drawing scale
+realObjectSizeMm = (250, 250)            # real object = 250 mm × 250 mm
+DPI = 1000.0  # Higher DPI = better image clarity
+# ───────────────────────────────────────────────────────────────────────── #
 
-# Page setup
-PAGE_SIZE_MM = (210, 297)              # A4 Portrait
-SCALE = 11                             # 1:50 real-world to paper
-REAL_OBJECT_SIZE_MM = (250, 250)       # Real size of object (e.g. 250mm x 250mm)
-# -------------------------------
+# ── helpers ──────────────────────────────────────────────────────────────
+def mmToPt(mm: float) -> float:
+    return mm * 72 / 25.4                # 1 inch = 72 pt = 25.4 mm
 
-def mm_to_pt(mm: float) -> float:
-    return mm * 72 / 25.4  # 1 inch = 72 pt, 1 inch = 25.4 mm
+def calculateScaledSizePt(realMm: Tuple[float, float],
+                           scale: float) -> Tuple[float, float]:
+    """Convert real‑world mm to drawing‑size points given a scale (1:scale)."""
+    widthMm  = realMm[0] / scale
+    heightMm = realMm[1] / scale
+    return mmToPt(widthMm), mmToPt(heightMm)
 
-def extract_poly_points(poly_fdf_path: str) -> List[List[Tuple[float, float]]]:
-    if not os.path.isfile(poly_fdf_path):
-        sys.exit("❌  Cannot find file “%s”" % poly_fdf_path)
+def resizeImageToPt(path: str,
+                    targetSizePt: Tuple[float, float]) -> Tuple[int, int, bytes]:
+    """
+    Resize *path* to *targetSizePt* (points) assuming 72 dpi,
+    return widthPx, heightPx, and the JPEG‑encoded bytes.
+    """
 
-    with open(poly_fdf_path, "r", encoding="latin-1") as f:
+    widthPx   = round(targetSizePt[0] * DPI / 72)
+    heightPx  = round(targetSizePt[1] * DPI / 72)
+    with Image.open(path) as img:
+        resized = img.resize((widthPx, heightPx), Image.LANCZOS).convert("RGB")
+        buf = BytesIO()
+        resized.save(buf, format="JPEG", quality=85)
+        return widthPx, heightPx, buf.getvalue()
+
+def extractPolyPoints(fdfPath: str) -> List[List[Tuple[float, float]]]:
+    if not os.path.isfile(fdfPath):
+        sys.exit(f"❌  Cannot find file “{fdfPath}”")
+    with open(fdfPath, "r", encoding="latin-1") as f:
         content = f.read()
 
-    polys: List[List[Tuple[float, float]]] = []
+    polys = []
     for block in re.findall(r"/Vertices\s*\[([^\]]+)\]", content):
         try:
             nums = list(map(float, block.strip().split()))
             polys.append(list(zip(nums[::2], nums[1::2])))
         except ValueError:
-            print(f"⚠️  skipped malformed /Vertices block: {block[:40]}…")
+            print(f"⚠️  Skipped malformed /Vertices block: {block[:40]}…")
     return polys
 
-def centroid(vertices: List[Tuple[float, float]]) -> Tuple[float, float]:
+def getCentroid(vertices: List[Tuple[float, float]]) -> Tuple[float, float]:
+    """Polygon centroid (handles triangles‑n‑up plus 2‑point fallback)."""
     if len(vertices) < 3:
         xs, ys = zip(*vertices)
-        return (sum(xs) / len(xs), sum(ys) / len(ys))
+        return sum(xs)/len(xs), sum(ys)/len(ys)
 
     a = cx = cy = 0.0
     for i in range(len(vertices)):
         x0, y0 = vertices[i]
         x1, y1 = vertices[(i + 1) % len(vertices)]
-        cross = x0 * y1 - x1 * y0
-        a += cross
+        cross  = x0 * y1 - x1 * y0
+        a  += cross
         cx += (x0 + x1) * cross
         cy += (y0 + y1) * cross
-
-    if a == 0:
+    if a == 0:                           # nearly colinear – use average
         xs, ys = zip(*vertices)
-        return (sum(xs) / len(xs), sum(ys) / len(ys))
+        return sum(xs)/len(xs), sum(ys)/len(ys)
     a *= 0.5
-    cx /= 6 * a
-    cy /= 6 * a
-    return (cx, cy)
+    return cx / (6*a), cy / (6*a)
 
-def scale_real_object_to_pdf(real_mm: Tuple[float, float], scale: float) -> Tuple[float, float]:
-    """Convert real-world size in mm → scaled pt on PDF"""
-    printed_w_mm = real_mm[0] / scale
-    printed_h_mm = real_mm[1] / scale
-    return mm_to_pt(printed_w_mm), mm_to_pt(printed_h_mm)
+def nextOutputName(base="output", ext="fdf") -> str:
+    for i in range(1, 100):
+        name = f"{base}-{i:02d}.{ext}"
+        if not Path(name).exists():
+            return name
+    sys.exit("❌  No free output slot (output-01 … output-99).")
 
-def get_resized_image(image_path: str, target_size_pt: Tuple[float, float]) -> Tuple[int, int, bytes]:
-    """Resize image to match target pt size (1 pt = 1 px at 72 DPI)"""
-    width_px = round(target_size_pt[0])
-    height_px = round(target_size_pt[1])
-
-    with Image.open(image_path) as img:
-        resized = img.resize((width_px, height_px), resample=Image.LANCZOS)
-        buffer = BytesIO()
-        resized.save(buffer, format="JPEG")
-        img_bytes = buffer.getvalue()
-
-    return width_px, height_px, img_bytes
-
-def build_image_fdf(pdf_name: str, img_bytes: bytes, centres: List[Tuple[float, float]],
-                    width_pt: float, height_pt: float, width_px: int, height_px: int, page: int) -> bytes:
-    objects = []
-    annot_refs = []
-    obj_num = 2
+def buildFdf(pdf: str, imgData: bytes, centres: List[Tuple[float, float]],
+             wPt: float, hPt: float, wPx: int, hPx: int, pageNum0: int) -> bytes:
+    """
+    Construct an FDF 1.2 with one SquareImage annotation per *centres* entry.
+    *pageNum0* is zero‑based for /Page.
+    """
+    objects, annotRefs = [], []
+    objNum = 2
 
     for idx, (cx, cy) in enumerate(centres, start=1):
-        x0 = cx - width_pt / 2
-        y0 = cy - height_pt / 2
-        x1 = x0 + width_pt
-        y1 = y0 + height_pt
+        x0, y0 = cx - wPt/2, cy - hPt/2
+        x1, y1 = x0 + wPt, y0 + hPt
+        annotId, streamId = objNum, objNum + 1
+        objNum += 2
 
-        annot_id = obj_num
-        stream_id = obj_num + 1
-        obj_num += 2
-
-        objects.append(textwrap.dedent(f"""\
-            {annot_id} 0 obj
+        # Annotation object
+        objects.append(textwrap.dedent(f"""
+            {annotId} 0 obj
             <<
               /Type /Annot
               /Subtype /Square
               /IT /SquareImage
               /Rect [{x0} {y0} {x1} {y1}]
               /NM (Img{idx})
-              /T (Img{idx})
-              /F 4
+              /T  (Img{idx})
+              /F  4
               /Image 999 0 R
-              /AP << /N {stream_id} 0 R >>
-              /Page {page}
+              /AP << /N {streamId} 0 R >>
+              /Page {pageNum0}
             >>
             endobj
         """))
 
-        stream = f"q {width_pt} 0 0 {height_pt} {x0} {y0} cm /Image Do Q"
-        objects.append(textwrap.dedent(f"""\
-            {stream_id} 0 obj
+        # Appearance stream
+        stream = f"q {wPt} 0 0 {hPt} {x0} {y0} cm /Image Do Q"
+        objects.append(textwrap.dedent(f"""
+            {streamId} 0 obj
             <<
               /Type /XObject
               /Subtype /Form
@@ -127,74 +142,64 @@ def build_image_fdf(pdf_name: str, img_bytes: bytes, centres: List[Tuple[float, 
               /Resources << /XObject << /Image 999 0 R >> /ProcSet [/PDF /ImageC] >>
               /Length {len(stream)}
             >>
-            stream
-            {stream}
-            endstream
+            stream\r
+            {stream}\r
+            endstream\r
             endobj
         """))
+        annotRefs.append(f"{annotId} 0 R")
 
-        annot_refs.append(f"{annot_id} 0 R")
-
-    img_obj = textwrap.dedent(f"""\
+    # JPEG image object (ID 999 0 R)
+    imgObj  = textwrap.dedent(f"""
         999 0 obj
         <<
           /Type /XObject
           /Subtype /Image
-          /Width {width_px}
-          /Height {height_px}
+          /Width {wPx}
+          /Height {hPx}
           /ColorSpace /DeviceRGB
           /BitsPerComponent 8
           /Filter /DCTDecode
-          /Length {len(img_bytes)}
+          /Length {len(imgData)}
         >>
-        stream
-    """).encode("latin-1") + img_bytes + b"\nendstream\nendobj\n"
+        stream\r
+    """).encode("latin-1") + imgData + b"\r\nendstream\r\nendobj\r\n"
 
-    root = textwrap.dedent(f"""\
+    # Root
+    root = textwrap.dedent(f"""
         %FDF-1.2
         %âãÏÓ
         1 0 obj
-        << /FDF <<
-             /F ({pdf_name})
-             /Annots [{' '.join(annot_refs)}]
-        >> >>
+        <<
+          /FDF <<
+            /F ({pdf})
+            /Annots [{' '.join(annotRefs)}]
+          >>
+        >>
         endobj
     """)
 
-    return root.encode("latin-1") + b"".join(obj.encode("latin-1") for obj in objects) + img_obj + b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
+    return root.encode("latin-1") + b"".join(o.encode("latin-1") for o in objects) + imgObj + \
+           b"trailer\r\n<< /Root 1 0 R >>\r\n%%EOF\r\n"
 
-def get_next_output_filename(base="output", ext="fdf") -> str:
-    for i in range(1, 100):
-        filename = f"{base}-{i:02d}.{ext}"
-        if not Path(filename).exists():
-            return filename
-    sys.exit("❌ Could not find free output file name slot (output-01 to output-99).")
-
+# ── main ─────────────────────────────────────────────────────────────────
 def main() -> None:
-    polys = extract_poly_points(POLY_FDF)
-    centres = [centroid(p) for p in polys]
+    polys    = extractPolyPoints(polyFdf)
+    centres  = [getCentroid(p) for p in polys]
+    wPt, hPt = calculateScaledSizePt(realObjectSizeMm, scale)
+    wPx, hPx, imgBytes = resizeImageToPt(imagePath, (wPt, hPt))
 
-    # Convert real-world object size → scaled pt size
-    width_pt, height_pt = scale_real_object_to_pdf(REAL_OBJECT_SIZE_MM, SCALE)
+    outFdf   = nextOutputName()
+    fdfBytes = buildFdf(pdf=pdfName,
+                        imgData=imgBytes,
+                        centres=centres,
+                        wPt=wPt, hPt=hPt,
+                        wPx=wPx, hPx=hPx,
+                        pageNum0=page-1)
 
-    # Resize image to match that point size (1 pt = 1 px)
-    width_px, height_px, img_bytes = get_resized_image(IMAGE, (width_pt, height_pt))
-
-    # Build FDF
-    out_fdf = get_next_output_filename()
-    fdf_bytes = build_image_fdf(
-        pdf_name=PDF_NAME,
-        img_bytes=img_bytes,
-        centres=centres,
-        width_pt=width_pt,
-        height_pt=height_pt,
-        width_px=width_px,
-        height_px=height_px,
-        page=PAGE - 1,
-    )
-
-    Path(out_fdf).write_bytes(fdf_bytes)
-    print(f"✅ Wrote {out_fdf} with {len(centres)} image(s) at 1:{SCALE} scale — {REAL_OBJECT_SIZE_MM[0]}×{REAL_OBJECT_SIZE_MM[1]} mm real-world size")
+    Path(outFdf).write_bytes(fdfBytes)
+    print(f"✅  Wrote {outFdf} with {len(centres)} image(s) "
+          f"at 1:{scale} → {realObjectSizeMm[0]}×{realObjectSizeMm[1]} mm real size.")
 
 if __name__ == "__main__":
     main()
