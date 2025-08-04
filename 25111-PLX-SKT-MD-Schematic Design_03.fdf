@@ -1,12 +1,33 @@
 %FDF-1.2
 %‚„œ”
-1 0 obj<</Version 1.5/FDF<</F(25111-PLX-SKT-MD-Schematic Design_03.pdf)/ID[<79577b58e8cfcf94afc16eeb606f70af><18ee24c94c0337bb83b99d1ee650bfa7>]/Annots[2 0 R]>>>>
+1 0 obj<</Version 1.5/FDF<</F(25111-PLX-SKT-MD-Schematic Design_03.pdf)/ID[<79577b58e8cfcf94afc16eeb606f70af><74dc0c2875661eb064371e07a9f8a89c>]/Annots[2 0 R 4 0 R 6 0 R 8 0 R]>>>>
 endobj
-2 0 obj<</Subj(Polygon)/Type/Annot/F 4/C[1 0 0]/CreationDate(D:20250722171941+08'00')/T(plexu)/Subtype/Polygon/M(D:20250722211321+08'00')/Vertices[-588.7556 -357.7399 -450.0554 -508.1005 -793.1913 -552.1216 -793.1913 -357.7398]/Rect[-798.6913 -557.6216 -444.5554 -352.2398]/NM(JRTULBRTUYGCOFHH)/Page 0>>
+2 0 obj<</Subj(Polygon)/Type/Annot/F 4/C[1 0 0]/CreationDate(D:20250728141846+08'00')/T(plexu)/Subtype/Polygon/M(D:20250728141846+08'00')/Vertices[-418.7286 259.3286 -418.7285 178.8215 468.9397 178.8215 468.9397 259.3286]/Rect[-424.2286 173.3215 474.4397 264.8286]/NM(JZHLRFRMYYWPAHTP)/Page 0>>
 endobj
-3 0 obj<</Type/XObject/Subtype/Form/FormType 1/BBox[-798.6913 -557.6216 -444.5554 -352.2398]/Resources<</ProcSet[/PDF]>>/Matrix[1 0 0 1 798.6913 557.6216]/Length 103>>
+3 0 obj<</Type/XObject/Subtype/Form/FormType 1/BBox[-424.2286 173.3215 474.4397 264.8286]/Resources<</ProcSet[/PDF]>>/Matrix[1 0 0 1 424.2286 -173.3215]/Length 97>>
 stream
-1 0 0 RG 1 w -588.7556 -357.7399 m -450.0554 -508.1005 l -793.1913 -552.1216 l -793.1913 -357.7398 l s 
+1 0 0 RG 1 w -418.7286 259.3286 m -418.7285 178.8215 l 468.9397 178.8215 l 468.9397 259.3286 l s 
+endstream
+endobj
+4 0 obj<</Subj(Polygon)/Type/Annot/F 4/C[1 0 0]/CreationDate(D:20250728141955+08'00')/T(plexu)/Subtype/Polygon/M(D:20250728142001+08'00')/Vertices[570.0685 -378.2036 466.3969 -378.2036 466.3969 257.9952 569.3774 257.9952]/Rect[460.8969 -383.7036 575.5685 263.4952]/NM(WEBVMHTENMYZERJT)/Page 0>>
+endobj
+5 0 obj<</Type/XObject/Subtype/Form/FormType 1/BBox[460.8969 -383.7036 575.5685 263.4952]/Resources<</ProcSet[/PDF]>>/Matrix[1 0 0 1 -460.8969 383.7036]/Length 97>>
+stream
+1 0 0 RG 1 w 570.0685 -378.2036 m 466.3969 -378.2036 l 466.3969 257.9952 l 569.3774 257.9952 l s 
+endstream
+endobj
+6 0 obj<</Subj(Polygon)/Type/Annot/F 4/C[1 0 0]/CreationDate(D:20250728142131+08'00')/T(plexu)/Subtype/Polygon/M(D:20250728142131+08'00')/Vertices[465.3883 -260.8636 465.3883 -382.0889 236.8281 -382.0889 236.8281 -259.6008]/Rect[231.3281 -387.5889 470.8883 -254.1008]/NM(PHJJJTGLOLONUUCK)/Page 0>>
+endobj
+7 0 obj<</Type/XObject/Subtype/Form/FormType 1/BBox[231.3281 -387.5889 470.8883 -254.1008]/Resources<</ProcSet[/PDF]>>/Matrix[1 0 0 1 -231.3281 387.5889]/Length 99>>
+stream
+1 0 0 RG 1 w 465.3883 -260.8636 m 465.3883 -382.0889 l 236.8281 -382.0889 l 236.8281 -259.6008 l s 
+endstream
+endobj
+8 0 obj<</Subj(Polygon)/Type/Annot/F 4/C[1 0 0]/CreationDate(D:20250728142141+08'00')/T(plexu)/Subtype/Polygon/M(D:20250728142141+08'00')/Vertices[234.3026 -349.257 -722.8722 -349.257 -722.8722 -259.6008 233.0398 -259.6008]/Rect[-728.3722 -354.757 239.8026 -254.1008]/NM(LIGZOZCDGRNAWLSN)/Page 0>>
+endobj
+9 0 obj<</Type/XObject/Subtype/Form/FormType 1/BBox[-728.3722 -354.757 239.8026 -254.1008]/Resources<</ProcSet[/PDF]>>/Matrix[1 0 0 1 728.3722 354.757]/Length 99>>
+stream
+1 0 0 RG 1 w 234.3026 -349.257 m -722.8722 -349.257 l -722.8722 -259.6008 l 233.0398 -259.6008 l s 
 endstream
 endobj
 trailer

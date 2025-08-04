@@ -4,19 +4,23 @@ import re
 import sys
 import zlib
 import textwrap
-from io import BytesIO
 from pathlib import Path
 from typing import List, Tuple
+import numpy as np
 from PIL import Image
+from shapely.geometry import Polygon, Point
+from shapely.geometry.polygon import orient
 
 # ─── USER INPUT ──────────────────────────────────────────────
-polyFdf          = "25111-PLX-SKT-MD-Schematic Design_03.fdf"
-pdfName          = "25111-PLX-SKT-MD-Schematic Design_03.pdf"
-imagePath        = "b.png"
-page             = 1
-scale            = 50
-realObjectSizeMm = (250, 250)
-dpi              = 1000.0
+polyFdf              = "25111-PLX-SKT-MD-Schematic Design_03.fdf"
+pdfName              = "25111-PLX-SKT-MD-Schematic Design_03.pdf"
+imagePath            = "b.png"
+page                 = 1
+scale                = 50
+realObjectSizeMm     = (250, 250)
+dpi                  = 1000.0
+spacingPt            = 100.0  # spacing between lights (in points)
+realWorldMarginMm    = 250.0  # real-world wall clearance in mm
 # ─────────────────────────────────────────────────────────────
 
 def mmToPt(mm: float) -> float:
@@ -33,77 +37,93 @@ def resizeImageToRawStreams(path: str, sizePt: Tuple[float, float], dpi: float) 
         img = img.resize((widthPx, heightPx), Image.LANCZOS)
         r, g, b, a = img.split()
         rgb = Image.merge("RGB", (r, g, b))
-
-        rgbBytes   = rgb.tobytes()
+        rgbBytes = rgb.tobytes()
         alphaBytes = a.tobytes()
         return widthPx, heightPx, zlib.compress(rgbBytes), zlib.compress(alphaBytes)
 
 def extractPolyPoints(fdfPath: str) -> List[List[Tuple[float, float]]]:
-    if not os.path.isfile(fdfPath):
-        sys.exit(f"❌  Cannot find file “{fdfPath}”")
     with open(fdfPath, "r", encoding="latin-1") as f:
         content = f.read()
-
     polys = []
     for block in re.findall(r"/Vertices\s*\[([^\]]+)\]", content):
         try:
             nums = list(map(float, block.strip().split()))
             polys.append(list(zip(nums[::2], nums[1::2])))
         except ValueError:
-            print(f"⚠️  Skipped malformed /Vertices block: {block[:40]}…")
+            pass
     return polys
 
-def getCentroid(verts: List[Tuple[float, float]]) -> Tuple[float, float]:
-    if len(verts) < 3:
-        xs, ys = zip(*verts)
-        return sum(xs)/len(xs), sum(ys)/len(ys)
+def generateLatticePoints(polygon: Polygon, spacing: float, marginPt: float, widthPx: int, heightPx: int) -> List[Tuple[float, float]]:
+    polygon = orient(polygon)
+    inset = polygon.buffer(-marginPt)
+    if inset.is_empty or not inset.is_valid:
+        inset = polygon
 
-    a = cx = cy = 0.0
-    for i in range(len(verts)):
-        x0, y0 = verts[i]
-        x1, y1 = verts[(i + 1) % len(verts)]
-        cross  = x0 * y1 - x1 * y0
-        a  += cross
-        cx += (x0 + x1) * cross
-        cy += (y0 + y1) * cross
-    if a == 0:
-        xs, ys = zip(*verts)
-        return sum(xs)/len(xs), sum(ys)/len(ys)
-    a *= 0.5
-    return cx / (6*a), cy / (6*a)
+    minx, miny, maxx, maxy = inset.bounds
+    width = maxx - minx
+    height = maxy - miny
 
-def getPolygonArea(verts: List[Tuple[float, float]]) -> float:
-    if len(verts) < 3:
-        return 0.0
-    a = 0.0
-    for i in range(len(verts)):
-        x0, y0 = verts[i]
-        x1, y1 = verts[(i + 1) % len(verts)]
-        a += x0 * y1 - x1 * y0
-    return abs(a) * 0.5
+    xCount = int(width // spacing)
+    yCount = int(height // spacing)
+    xOffset = minx + (width - xCount * spacing) / 2
+    yOffset = miny + (height - yCount * spacing) / 2
+
+    xs = np.arange(xOffset, maxx, spacing)
+    ys = np.arange(yOffset, maxy, spacing)
+
+    return [(x, y) for x in xs for y in ys if inset.contains(Point(x, y))]
+
+def buildMarginAnnots(polygons: List[Polygon], marginPt: float, pageNum0: int, startObjNum: int = 100) -> Tuple[List[str], List[str]]:
+    objects = []
+    refs = []
+    objNum = startObjNum
+    for poly in polygons:
+        inset = poly.buffer(-marginPt)
+        if inset.is_empty or not inset.is_valid:
+            continue
+        if hasattr(inset, "geoms"):
+            parts = list(inset.geoms)
+        else:
+            parts = [inset]
+        for part in parts:
+            coords = list(part.exterior.coords)
+            flat = " ".join(f"{x:.2f} {y:.2f}" for x, y in coords)
+            objects.append(textwrap.dedent(f"""
+                {objNum} 0 obj
+                <<
+                  /Type /Annot
+                  /Subtype /Polygon
+                  /Rect [0 0 0 0]
+                  /Vertices [{flat}]
+                  /C [0 1 0]
+                  /T (Margin)
+                  /F 4
+                  /Page {pageNum0}
+                >>
+                endobj
+            """))
+            refs.append(f"{objNum} 0 R")
+            objNum += 1
+    return objects, refs
 
 def nextOutputName(base="output", ext="fdf") -> str:
     for i in range(1, 100):
         name = f"{base}-{i:02d}.{ext}"
         if not Path(name).exists():
             return name
-    sys.exit("❌  No free output slot (output-01 … output-99).")
+    sys.exit("No free output slot.")
 
 def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
-             centres: List[Tuple[float, float]], wPt: float, hPt: float,
-             wPx: int, hPx: int, pageNum0: int) -> bytes:
-
+             centres: List[Tuple[float, float]], marginPolys: List[Polygon],
+             wPt: float, hPt: float, wPx: int, hPx: int, pageNum0: int) -> bytes:
     objects, annotRefs = [], []
     objNum = 2
-
     for idx, (cx, cy) in enumerate(centres, start=1):
-        x0, y0 = cx - wPt/2, cy - hPt/2
+        x0, y0 = cx - wPt / 2, cy - hPt / 2
         x1, y1 = x0 + wPt, y0 + hPt
+        stream = f"q {wPt} 0 0 {hPt} {x0} {y0} cm /Image Do Q"
         annotId, streamId = objNum, objNum + 1
         objNum += 2
-
-        stream = f"q {wPt} 0 0 {hPt} {x0} {y0} cm /Image Do Q"
-
         objects.append(textwrap.dedent(f"""
             {annotId} 0 obj
             <<
@@ -112,8 +132,8 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
               /IT /SquareImage
               /Rect [{x0} {y0} {x1} {y1}]
               /NM (Img{idx})
-              /T  (Img{idx})
-              /F  4
+              /T (Img{idx})
+              /F 4
               /Border [0 0 0]
               /Image 999 0 R
               /AP << /N {streamId} 0 R >>
@@ -121,7 +141,6 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
             >>
             endobj
         """))
-
         objects.append(textwrap.dedent(f"""
             {streamId} 0 obj
             <<
@@ -137,8 +156,11 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
             endstream\r
             endobj
         """))
-
         annotRefs.append(f"{annotId} 0 R")
+
+    marginObjs, marginRefs = buildMarginAnnots(marginPolys, mmToPt(realWorldMarginMm / scale), pageNum0, objNum)
+    annotRefs.extend(marginRefs)
+    objects.extend(marginObjs)
 
     imgObj = textwrap.dedent(f"""
         999 0 obj
@@ -183,32 +205,28 @@ def buildFdf(pdf: str, rgbData: bytes, alphaData: bytes,
         >>
         endobj
     """)
-
     return (root.encode("latin-1")
             + b"".join(o.encode("latin-1") for o in objects)
             + imgObj + smaskObj
             + b"trailer\r\n<< /Root 1 0 R >>\r\n%%EOF\r\n")
 
-def main() -> None:
-    polys    = extractPolyPoints(polyFdf)
-    centres  = [getCentroid(p) for p in polys]
-    areasPt2 = [getPolygonArea(p) for p in polys]
-
-    # Convert to mm² using page-to-mm and drawing scale
-    pt2_to_m2  = (25.4 / 72) ** 2 / 1000000
-    scaleFactor = scale ** 2
-    areasm2 = [a * pt2_to_m2 * scaleFactor for a in areasPt2]
-
-    for i, area in enumerate(areasm2, start=1):
-        print(f"🔹 Polygon {i}: {area:.1f} mm² (scaled 1:{scale})")
+def main():
+    marginPt = mmToPt(realWorldMarginMm / scale)
+    polys = [Polygon(verts) for verts in extractPolyPoints(polyFdf)]
+    validPolys = [p for p in polys if p.is_valid and not p.is_empty]
 
     wPt, hPt = calculateScaledSizePt(realObjectSizeMm, scale)
     wPx, hPx, rgbData, alphaData = resizeImageToRawStreams(imagePath, (wPt, hPt), dpi)
-    outFdf = nextOutputName()
 
-    fdfBytes = buildFdf(pdfName, rgbData, alphaData, centres, wPt, hPt, wPx, hPx, page - 1)
+    allCentres = []
+    for poly in validPolys:
+        dots = generateLatticePoints(poly, spacingPt, marginPt, wPx, hPx)
+        allCentres.extend(dots)
+
+    fdfBytes = buildFdf(pdfName, rgbData, alphaData, allCentres, validPolys, wPt, hPt, wPx, hPx, page - 1)
+    outFdf = nextOutputName()
     Path(outFdf).write_bytes(fdfBytes)
-    print(f"✅  Wrote {outFdf} with {len(centres)} image(s) — outline set to 0 pt")
+    print(f"Wrote {outFdf} with {len(allCentres)} image(s) and margin outlines.")
 
 if __name__ == "__main__":
     main()
