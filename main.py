@@ -1,5 +1,5 @@
-from plot import *
-from algorithm import *
+from Plexit.plot import *
+from Plexit.algorithm import *
 
 def main():
     # Define some random polygon points for now
