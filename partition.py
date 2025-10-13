@@ -166,8 +166,7 @@ def find_segment_intersections(internal_segments, polySides, polyPath):
 def add_sweeplines(points, polyPath, polySides, ax=None):
     """
     Add vertical sweeplines at x-coordinates where they are needed to complete the partition.
-    Only adds sweeplines at x-coordinates that are vertices AND where there's already
-    a vertical boundary edge or internal segment at that x-coordinate.
+    Adds sweeplines at all vertex x-coordinates to ensure complete rectangular decomposition.
     """
     xs = sorted(set([p[0] for p in points]))
     vs = verticalSides(polySides)
@@ -176,24 +175,16 @@ def add_sweeplines(points, polyPath, polySides, ax=None):
     sweepline_segments = []
 
     for x in xs:
-        # Check if there's a vertical boundary edge at this x-coordinate
-        has_vertical_boundary = any(v[0][0] == x for v in vs)
-
-        if not has_vertical_boundary:
-            # Skip this x-coordinate - it's not part of the vertical structure
-            continue
 
         # Find all horizontal edges that span this x-coordinate
+        # We need all y-coordinates where horizontal boundaries cross this vertical line
         y_coords = set()
         for h in hs:
             y = h[0][1]
             x_min, x_max = min(h[0][0], h[1][0]), max(h[0][0], h[1][0])
             if x_min <= x <= x_max:
-                # Check if a point slightly inside at this x,y is inside the polygon
-                probe_up = (x, y + delta)
-                probe_down = (x, y - delta)
-                if polyPath.contains_point(probe_up) or polyPath.contains_point(probe_down):
-                    y_coords.add(y)
+                # Add this y-coordinate - it's a boundary crossing point
+                y_coords.add(y)
 
         # Sort y-coordinates and create vertical segments between consecutive pairs
         if len(y_coords) >= 2:
@@ -210,11 +201,34 @@ def add_sweeplines(points, polyPath, polySides, ax=None):
 
     return sweepline_segments
 
+def is_reflex_vertex(points, index):
+    """
+    Determine if a vertex is reflex (concave) in a polygon.
+    Returns True if the vertex is reflex (interior angle > 180 degrees).
+    """
+    n = len(points)
+    prev_point = points[(index - 1) % n]
+    curr_point = points[index]
+    next_point = points[(index + 1) % n]
+
+    # Calculate vectors
+    v1 = (curr_point[0] - prev_point[0], curr_point[1] - prev_point[1])
+    v2 = (next_point[0] - curr_point[0], next_point[1] - curr_point[1])
+
+    # Calculate cross product (z-component)
+    cross = v1[0] * v2[1] - v1[1] * v2[0]
+
+    # For counterclockwise winding:
+    # - If cross < 0, the vertex is reflex (concave, interior angle > 180°)
+    # - If cross > 0, the vertex is convex (interior angle < 180°)
+    return cross < 0
+
 def dividePolygon(points, polyPath, polySides, ax=None, return_rectangles=False):
     """
     Your simple driver that:
       - for each vertex, removes mimicking directions and outside directions
       - draws the internal line in each remaining direction
+      - for reflex vertices, also tries to draw lines even if removeOutsides filters them
     Now also collects the drawn internal segments and (optionally) computes rectangles.
 
     If return_rectangles=True, returns (internal_segments, rectangles).
@@ -223,15 +237,24 @@ def dividePolygon(points, polyPath, polySides, ax=None, return_rectangles=False)
     all_internal = []
 
     # First pass: draw lines from all vertices
-    for point in points:
+    for i, point in enumerate(points):
         directions = removeMimics(polySides, point)
-        directions = removeOutsides(polyPath, point, directions)
-        segs = drawLines(point, polySides, directions, ax=ax)
+        is_reflex = is_reflex_vertex(points, i)
+
+        if is_reflex:
+            # For reflex vertices, try all non-mimicking directions
+            # because they may need to extend into notches
+            segs = drawLines(point, polySides, directions, ax=ax)
+        else:
+            # For convex vertices, filter out outside directions
+            directions = removeOutsides(polyPath, point, directions)
+            segs = drawLines(point, polySides, directions, ax=ax)
+
         all_internal.extend(segs)
 
-    # Add sweeplines at each x-coordinate (commented out for now)
-    # sweepline_segs = add_sweeplines(points, polyPath, polySides, ax=ax)
-    # all_internal.extend(sweepline_segs)
+    # Add sweeplines at each x-coordinate to complete the partition
+    sweepline_segs = add_sweeplines(points, polyPath, polySides, ax=ax)
+    all_internal.extend(sweepline_segs)
 
     # Second pass: find intersection points and draw lines from them
     # We need to iterate until no new segments are added
@@ -343,7 +366,7 @@ def _find_relevant_x_coords_at_y_range(segments, y_min, y_max):
 
 def find_rectangles_from_segments(polyPath, polySides, internalSegments):
     """
-    Implements a modified grid method that can skip non-adjacent grid cells.
+    Implements a modified grid method that finds minimal rectangles.
     Returns a list of rectangles as ((x0,y0),(x1,y1)).
     """
     # 1) all segments = boundary + internal
@@ -359,38 +382,25 @@ def find_rectangles_from_segments(polyPath, polySides, internalSegments):
     if len(xs) < 2 or len(ys) < 2:
         return []
 
-    # 4) iterate ALL possible cell pairs (not just adjacent)
+    # 4) iterate over grid cells (adjacent pairs only) for minimal rectangles
     rectangles = []
-    for i in range(len(xs)):
-        for i2 in range(i + 1, len(xs)):
-            x0, x1 = xs[i], xs[i2]
-            for j in range(len(ys)):
-                for j2 in range(j + 1, len(ys)):
-                    y0, y1 = ys[j], ys[j2]
+    for i in range(len(xs) - 1):
+        for j in range(len(ys) - 1):
+            x0, x1 = xs[i], xs[i + 1]
+            y0, y1 = ys[j], ys[j + 1]
 
-                    # center test inside polygon
-                    cx, cy = (x0 + x1) * 0.5, (y0 + y1) * 0.5
-                    if not polyPath.contains_point((cx, cy)):
-                        continue
+            # center test inside polygon
+            cx, cy = (x0 + x1) * 0.5, (y0 + y1) * 0.5
+            if not polyPath.contains_point((cx, cy)):
+                continue
 
-                    # all four edges present?
-                    top_ok    = _interval_covered(y1, x0, x1, covH)
-                    bottom_ok = _interval_covered(y0, x0, x1, covH)
-                    left_ok   = _interval_covered(x0, y0, y1, covV)
-                    right_ok  = _interval_covered(x1, y0, y1, covV)
+            # all four edges present?
+            top_ok    = _interval_covered(y1, x0, x1, covH)
+            bottom_ok = _interval_covered(y0, x0, x1, covH)
+            left_ok   = _interval_covered(x0, y0, y1, covV)
+            right_ok  = _interval_covered(x1, y0, y1, covV)
 
-                    if top_ok and bottom_ok and left_ok and right_ok:
-                        # Check if this rectangle contains any smaller valid rectangles
-                        # If so, skip it (we want minimal rectangles)
-                        is_minimal = True
-                        for (rx0, ry0), (rx1, ry1) in rectangles:
-                            if rx0 >= x0 and rx1 <= x1 and ry0 >= y0 and ry1 <= y1:
-                                if (rx0, ry0) != (x0, y0) or (rx1, ry1) != (x1, y1):
-                                    # Found a smaller rectangle inside this one
-                                    is_minimal = False
-                                    break
-
-                        if is_minimal:
-                            rectangles.append(((x0, y0), (x1, y1)))
+            if top_ok and bottom_ok and left_ok and right_ok:
+                rectangles.append(((x0, y0), (x1, y1)))
 
     return rectangles
