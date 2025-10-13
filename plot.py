@@ -2,6 +2,17 @@ from utils import *
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon as MplPolygon
 
+def plotInit(points, xLim, yLim, title="Rectilinear Polygon"):
+    xLim, yLim = getBounds(points)
+    fig, ax = plt.subplots()
+    ax.set_xlim(xLim)
+    ax.set_ylim(yLim)
+    ax.set_title(title)
+    ax.set_aspect('equal', adjustable='box')
+    ax.grid(False)
+
+    return ax
+
 def createPolygon(points, edgecolor='r', fill=None):
     """Creates a matplotlib Polygon object from a list of (x, y) points."""
     return MplPolygon(points, closed=True, fill=fill, edgecolor=edgecolor)
