@@ -1,7 +1,6 @@
 import numpy as np
-from matplotlib.patches import Polygon
 import matplotlib.pyplot as plt
-from matplotlib.collections import PatchCollection
+from matplotlib.patches import Polygon
 from matplotlib.path import Path
 
 # Constants
