@@ -1,0 +1,206 @@
+{
+  "_README": [
+    "Ground truth for measuring extraction quality:",
+    "    python dev-server.py --test test-datasheets",
+    "",
+    "KEYS are a distinctive fragment of the PDF filename - the product code is",
+    "ideal. Matching is loose and case-insensitive, so renaming a file will not",
+    "silently stop it being scored. A sheet with no entry here says so.",
+    "",
+    "VALUES are what SHOULD land in each column. \"UNKNOWN\" means the cell should",
+    "come back BLANK - the sheet gives no value, or gives two or more and picking",
+    "one is the engineer's job. Those are as important as the filled ones and are",
+    "what the tool is worst at.",
+    "",
+    "Scoring is substring-based, so values are kept short and distinctive.",
+    "DIMENSIONS are stored as the single most characteristic figure because axis",
+    "labelling varies between the tool and the sheet; two-digit dimensions are",
+    "omitted entirely since \"70\" also matches \"170mm\". Treat dimension scoring",
+    "as indicative.",
+    "",
+    "Fields are OMITTED where the correct answer is genuinely doubtful - omitted",
+    "fields are not scored, and that is the right outcome for a doubtful reading.",
+    "",
+    "DRIVER CONVENTION: where a sheet states 'Dimming: Non-Dimming' these expect",
+    "NON-DIMMING rather than blank, since that is a stated single value. If your",
+    "schedule would rather leave that column empty, change these to UNKNOWN.",
+    "",
+    "All entries were read off the PDFs by hand. Check them before trusting the",
+    "score - a wrong expected value makes a correct extraction look like a bug."
+  ],
+
+  "modular-kup-72": {
+    "_note": "Family sheet: 4 CCTs, 3 drive currents, 6 finishes. Dimensions exist only on the drawing. CRI 98 'on request' is the decoy against the stated Min. 90.",
+    "finish": "UNKNOWN", "source": "UNKNOWN", "ip": "IP55", "cri": "90",
+    "sdcm": "3", "lifetime": "L90B05", "mounting": "RECESSED", "model": "Kup"
+  },
+  "SLI10003": {
+    "_note": "Ligman SLIMSOFT bollard. Single variant, everything stated. The regex scanner missed IP, finish and SDCM despite all three being printed plainly.",
+    "finish": "CONCRETE", "ip": "IP66", "cri": "80", "sdcm": "3",
+    "lifetime": "L90B10", "model": "SLIMSOFT"
+  },
+  "LUO65010": {
+    "_note": "Versalux Lucca. THE DIMENSIONS TRAP: 'Luminous Length 628mm' sits above 'Dimensions 650mm'. 628 is the lit area, 650 is the fitting.",
+    "finish": "BLACK", "dimensions": "650", "ip": "IP20", "cri": "90",
+    "sdcm": "3", "lifetime": "UNKNOWN", "mounting": "SURFACE", "model": "Lucca"
+  },
+  "PW69-GP108": {
+    "_note": "Ligman POWERVISION 6. The hardest sheet here: two CCTs, a lumen RANGE, three dimming types, eleven colours, no mounting stated. FIVE fields must come back blank.",
+    "finish": "UNKNOWN", "ip": "IP66", "cri": "80", "sdcm": "3",
+    "lifetime": "L90B10", "mounting": "UNKNOWN", "driver": "UNKNOWN",
+    "source": "UNKNOWN", "model": "POWERVISION"
+  },
+  "EL-DENL-3100-000": {
+    "_note": "Eagle Densus. MOUNTING TRAP: 'Suspended/Surface Mounted' is two options, so mounting is blank AND description must not say suspended - it is a batten. Four lifetime metrics of one product: take L90B50.",
+    "finish": "GREY", "ip": "IP66", "cri": "80", "sdcm": "3",
+    "lifetime": "L90B50", "mounting": "UNKNOWN", "driver": "240V",
+    "source": "4000K", "model": "Densus"
+  },
+  "SL29.06": {
+    "_note": "iGuzzini Clan table lamp. Nothing stated for CRI, SDCM, lifetime or voltage - all four must be blank. 'Power supply cable with plug' is not a voltage. Height 384mm exists only on the drawing.",
+    "finish": "YELLOW", "dimensions": "400", "ip": "IP20", "cri": "UNKNOWN",
+    "sdcm": "UNKNOWN", "lifetime": "UNKNOWN", "driver": "UNKNOWN",
+    "source": "3000K", "model": "Clan"
+  },
+
+  "118-COTP30W603": {
+    "_note": "FAZE Core 95 Plus Track. 'Dimming: Non-Dimming' with 'Dali Available: Yes' three rows below - available is not fitted. Dimensions only on the drawing.",
+    "finish": "WHITE", "ip": "IP20", "cri": "92", "sdcm": "2",
+    "lifetime": "L90B10", "mounting": "TRACK", "driver": "NON-DIMMING",
+    "source": "3000K", "model": "Core 95"
+  },
+  "118-COTP316B603": {
+    "_note": "FAZE Core 70 Plus Track. Control Gear row says Non-Dimmable and Dimming says Non-Dimming, but Dali Available says Yes. Dimensions omitted: the drawing's O70mm would also match the 170mm H2 figure.",
+    "finish": "BLACK", "ip": "IP20", "cri": "92", "sdcm": "2",
+    "lifetime": "L90B10", "mounting": "TRACK", "driver": "NON-DIMMING",
+    "source": "3000K", "model": "Core 70"
+  },
+  "118-COR318B604D": {
+    "_note": "FAZE Core G3 surface cylinder. Control Gear row states DALI, which resolves the vague 'Dimming determined by driver'. Mounting omitted: it is a surface cylinder by form but no mounting row states it, and the overview offers adjustable/suspension/track as options.",
+    "finish": "BLACK", "ip": "IP20", "cri": "92", "sdcm": "2",
+    "lifetime": "L90B10", "driver": "DALI", "source": "4000K", "model": "Core G3"
+  },
+  "7-BLF204W403": {
+    "_note": "FAZE Bloc 2. LIFETIME TRAP: '54,000 hrs' with no L figure at all, so lifetime must be blank. Dimensions omitted - the table says Width 45mm while the drawing says W 70mm, an internal contradiction.",
+    "finish": "WHITE", "ip": "IP20", "cri": "90", "sdcm": "3",
+    "lifetime": "UNKNOWN", "mounting": "RECESSED", "driver": "NON-DIMMING",
+    "source": "3000K", "model": "Bloc 2"
+  },
+  "10-FL1220SSTW": {
+    "_note": "FAZE Flow Side TUNABLE WHITE. Source must be blank: CCT is printed 'N/AK' and the strip shifts across 2700K-5300K, which is a range not a value. Dimming row reads 'determined by driver', which is not a value either.",
+    "finish": "SILICONE", "ip": "IP67", "cri": "80", "sdcm": "3",
+    "lifetime": "L70B10", "source": "UNKNOWN", "driver": "UNKNOWN",
+    "model": "Flow Side"
+  },
+  "10-FPSR1035": {
+    "_note": "FAZE Flow Plus Side. Non-Dimming stated while Dali Available says Yes. Source omitted: 'Watt/m 10W p/m' is a per-metre figure, not this run's circuit watts.",
+    "finish": "POLYEURETHANE", "dimensions": "20mm", "ip": "IP68", "cri": "92",
+    "sdcm": "2", "lifetime": "L70", "driver": "NON-DIMMING", "model": "Flow Plus"
+  },
+  "118-ED2A13W603": {
+    "_note": "FAZE Edge Wall Washer. Cut Out O92mm must not become the dimensions - envelope is O100mm. Phase Cut Dimming stated while Dali Available says Yes. Description must be DOWNLIGHT, not 'wall washer'.",
+    "finish": "WHITE", "dimensions": "100", "ip": "IP44", "cri": "92",
+    "sdcm": "2", "lifetime": "L80", "mounting": "RECESSED", "driver": "PHASE",
+    "source": "3000K", "model": "Edge Wall Washer"
+  },
+  "118-ED3L13W603": {
+    "_note": "FAZE Edge 100 G3. UGR 15 must not be read as CRI (92+). Control Gear DALI resolves the vague 'Dimming determined by driver'.",
+    "finish": "WHITE", "dimensions": "100", "ip": "IP44", "cri": "92",
+    "sdcm": "2", "lifetime": "L90B10", "mounting": "RECESSED", "driver": "DALI",
+    "source": "3000K", "model": "Edge 100"
+  },
+  "118-ED3X13W603": {
+    "_note": "FAZE Edge XS. Hardest dimension case in the set: the drawing carries CUTOUT O92, inner trim O62, outer O103 and H 83. The envelope is 103, so both 92 and 62 are wrong.",
+    "finish": "WHITE", "dimensions": "103", "ip": "IP44", "cri": "92",
+    "sdcm": "2", "lifetime": "L90B10", "mounting": "RECESSED", "driver": "DALI",
+    "source": "3000K", "model": "Edge XS"
+  },
+  "119-ARKW18B803": {
+    "_note": "FAZE Ark Wall. Lifetime '55,000hrs' with no L figure, so blank. UGR 20 and IP Rating 20 must not be confused with CRI 90+. Overview prose says 'brushed bronze' but the Finish row says Black - the spec row wins.",
+    "finish": "BLACK", "dimensions": "102", "ip": "IP20", "cri": "90",
+    "sdcm": "2", "lifetime": "UNKNOWN", "mounting": "WALL", "driver": "PHASE",
+    "source": "3000K", "model": "Ark Wall"
+  },
+  "119-BL12815CSG3": {
+    "_note": "FAZE Bloom pendant. '>72,000hrs L70' does carry an L figure so it is NOT blank. Overview offers Champagne & Carbon finishes but the Finish row states Carbon Smoke for this variant - the stated row wins. Dimensions omitted: the drawing is a low-res raster whose labels are illegible.",
+    "finish": "CARBON SMOKE", "ip": "IP20", "cri": "90", "sdcm": "2",
+    "lifetime": "L70", "driver": "PHASE", "source": "3000K", "model": "Bloom"
+  },
+  "121-DARC2BL": {
+    "_note": "FAZE Darc cordless table lamp. Lifetime '55,000hrs' has no L figure. No Colour Deviation row exists at all. USB-C charging is not a voltage. Mounting omitted - never stated.",
+    "finish": "BLUE", "dimensions": "125", "ip": "IP20", "cri": "90",
+    "sdcm": "UNKNOWN", "lifetime": "UNKNOWN", "driver": "NON-DIMMING",
+    "source": "3000K", "model": "Darc"
+  },
+
+  "A3130021NT": {
+    "_note": "iGuzzini Puck Recessed. Dimming 'DALI / Push' is two options so driver is blank. Recess O59 is a cut-out and packaging 139x133x59 is packaging - neither is the dimensions.",
+    "finish": "TEXTURED BLACK", "ip": "IP20", "cri": "90", "sdcm": "2",
+    "lifetime": "L90B10", "mounting": "RECESSED", "driver": "UNKNOWN",
+    "source": "3000K", "model": "Puck"
+  },
+  "A5721000WT": {
+    "_note": "iGuzzini Enso. 'No Dim' -> NON-DIMMING. Recess 35x122 and packaging 170x127x99 are both decoys against the drawing's 140x135. Mounting omitted: category says wall but the variant is semi-recessed.",
+    "finish": "TEXTURED WHITE", "dimensions": "140", "ip": "IP20", "cri": "90",
+    "sdcm": "2", "lifetime": "L90B10", "driver": "NON-DIMMING",
+    "source": "2700K", "model": "Enso"
+  },
+  "A3080010NT": {
+    "_note": "iGuzzini Rec Mini. Dimensions only on the drawing (176x148x40); packaging 232x190x48 is the decoy.",
+    "finish": "TEXTURED BLACK", "dimensions": "176", "ip": "IP20", "cri": "90",
+    "sdcm": "2", "lifetime": "L90B10", "mounting": "WALL",
+    "driver": "NON-DIMMING", "source": "2700K", "model": "Rec Mini"
+  },
+  "A2880011NT": {
+    "_note": "iGuzzini Lip. Dimming 'DALI / Push' is two options so driver is blank. Drawing 232x90x60 against packaging 273x143x75.",
+    "finish": "TEXTURED BLACK", "dimensions": "232", "ip": "IP20", "cri": "90",
+    "sdcm": "2", "lifetime": "L90B10", "mounting": "WALL", "driver": "UNKNOWN",
+    "source": "3000K", "model": "Lip"
+  },
+  "SM-21141": {
+    "_note": "Ligman SMITH. Two CCTs plus a 7876-8468 lumen range so source is blank; 5 standard + 7 special finishes so finish is blank; 'On/Off, 1-10V, DALI' is three options. CRI is 80 in both CCT variants so it survives. BUG B2-U5-G3 and CIE flux code 67 are CRI decoys.",
+    "finish": "UNKNOWN", "dimensions": "186", "ip": "IP65", "source": "UNKNOWN",
+    "cri": "80", "sdcm": "3", "lifetime": "L90B10", "mounting": "UNKNOWN",
+    "model": "SMITH"
+  },
+  "EDB-20001": {
+    "_note": "Ligman EDINBURGH. Three CCTs plus a 2528-3404 lm range so source is blank; full palette so finish is blank. CRI 80 across all three CCTs so it survives. A required 3m pole accessory is not a mounting method.",
+    "finish": "UNKNOWN", "ip": "IP66", "source": "UNKNOWN", "cri": "80",
+    "sdcm": "3", "lifetime": "L90B10", "mounting": "UNKNOWN", "model": "EDINBURGH"
+  },
+  "LD50011": {
+    "_note": "Ligman LADOR 2. Palette plus 'special finishes upon request' so finish is blank; '3000K CRI80, 4000K CRI80' and a 906-1112 lm range so source is blank, yet CRI is 80 either way. Three lifetime rows are one product measured three ways - take L90B10. A ground spike accessory is not a mounting method.",
+    "finish": "UNKNOWN", "ip": "IP66", "source": "UNKNOWN", "cri": "80",
+    "sdcm": "3", "lifetime": "L90B10", "mounting": "UNKNOWN",
+    "driver": "240V", "model": "LADOR"
+  },
+  "SV30.F5": {
+    "_note": "iGuzzini iWay Velvet. CRI 82 must not be confused with the Rf 80 / Rg 101 gamut codes. Two lifetime rows (Ta25 / Ta40) are one product measured twice.",
+    "finish": "RUST BROWN", "dimensions": "180", "ip": "IP66", "source": "4000K",
+    "cri": "82", "sdcm": "3", "lifetime": "L80", "mounting": "BOLLARD",
+    "driver": "DALI", "model": "iWay Velvet"
+  },
+  "BJ93.15": {
+    "_note": "iGuzzini iPro. Driver must be blank: Class III is not a voltage, the ballast is ordered separately, and 1050mA is drive current not supply. Mounting omitted - the sheet genuinely offers ground, wall or ceiling.",
+    "finish": "GREY", "ip": "IP66", "source": "3000K", "cri": "83", "sdcm": "3",
+    "lifetime": "L80", "driver": "UNKNOWN", "model": "iPro"
+  },
+  "BE16.04": {
+    "_note": "iGuzzini Lun-Up Evo in-ground. Driver is 24V from the headline, NOT DALI - the DALI ballast is ordered separately. The 195x61x38 figure on page 1 is the optional remote power supply, not the fitting.",
+    "finish": "BLACK", "dimensions": "307", "ip": "IP67", "source": "3000K",
+    "cri": "82", "sdcm": "3", "lifetime": "L90", "mounting": "RECESSED",
+    "driver": "24V", "model": "Lun-Up Evo"
+  },
+  "COMLALFR00": {
+    "_note": "Versalux Como ALAV L. Luminous Length/Width 150mm is the LIT AREA; the Physical panel gives 250mm x 130mm. Cut Out 225mm is a cut-out. IP omitted: printed as 'IP20 / IP65 from underside', genuinely two-valued.",
+    "finish": "WHITE", "dimensions": "250", "source": "2200K", "cri": "90",
+    "sdcm": "3", "lifetime": "UNKNOWN", "mounting": "RECESSED",
+    "driver": "240V", "model": "Como ALAV"
+  },
+  "COMS0000WB": {
+    "_note": "Versalux Como S. Luminous 90mm is the lit area, real envelope is 110mm x 75mm, Cut Out 98mm is a cut-out. No L-rating anywhere so lifetime is blank despite a 5 year warranty.",
+    "finish": "WHITE", "dimensions": "110", "ip": "IP65", "source": "4000K",
+    "cri": "90", "sdcm": "3", "lifetime": "UNKNOWN", "mounting": "RECESSED",
+    "driver": "240V", "model": "Como S"
+  }
+}
